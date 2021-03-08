@@ -1,0 +1,12 @@
+[package]
+name = "sonde-test"
+version = "0.1.0"
+authors = ["Ivan Enderlin <ivan@mnt.io>"]
+edition = "2018"
+publish = false
+
+[dependencies]
+sonde = { path = "../lib/sonde" }
+
+[build-dependencies]
+sonde = { path = "../lib/sonde" }

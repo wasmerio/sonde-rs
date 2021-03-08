@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "lib/sonde",
+    "lib/sonde-derive",
+]
+exclude = [
+    "sonde-test",
+]
