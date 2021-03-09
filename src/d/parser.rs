@@ -1,5 +1,8 @@
-//! Documentation for the `.d` format,
-//! https://illumos.org/books/dtrace/chp-usdt.html#chp-usdt-2.
+//! [The original grammar can be found
+//! here](https://github.com/opendtrace/opendtrace/blob/master/lib/libdtrace/common/dt_grammar.y). This
+//! parser re-implements the `provider_definition` rule (with its
+//! children, `provider_probe_list`, `provider_probe`, `function`
+//! etc.).
 
 use super::ast::*;
 use nom::{
@@ -32,6 +35,10 @@ fn name<'i, E: ParseError<&'i str>>(input: &'i str) -> IResult<&'i str, &'i str,
 }
 
 /// Parse a type. That's super generic. It doesn't validate anything specifically.
+///
+/// Note: This is incomplete for the moment. See the
+/// `parameter_type_list` from the official grammar (see module's
+/// documentation).
 fn ty<'i, E: ParseError<&'i str>>(input: &'i str) -> IResult<&'i str, &'i str, E> {
     let chars = ",)";
 
