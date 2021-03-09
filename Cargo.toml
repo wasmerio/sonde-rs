@@ -1,7 +1,10 @@
 [package]
 name = "sonde"
 version = "0.1.0"
+description = "A library to compile USDT probes into a Rust library"
 authors = ["Ivan Enderlin <ivan@mnt.io>"]
+repository = "https://github.com/Hywan/sonde-rs"
+license = "MIT"
 edition = "2018"
 
 [dependencies]
