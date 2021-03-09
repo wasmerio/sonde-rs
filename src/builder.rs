@@ -1,7 +1,7 @@
 use crate::dparser;
 use std::{
     env,
-    fs::read_to_string,
+    fs::{read_to_string, File},
     io::prelude::*,
     path::{Path, PathBuf},
     process::Command,
@@ -63,6 +63,16 @@ impl Builder {
         let mut contents = String::new();
         let mut providers = Vec::with_capacity(self.d_files.len());
 
+        // Tell Cargo to rerun the build script if one of the `.d` files has changed.
+        {
+            for d_file in &self.d_files {
+                println!(
+                    "cargo:rerun-if-changed={file}",
+                    file = d_file.as_path().display()
+                );
+            }
+        }
+
         // Collect all contents of the `.d` files, and parse the declared providers.
         {
             for d_file in &self.d_files {
@@ -79,7 +89,8 @@ impl Builder {
 
         // Let's get a unique `.h` file from the `.d` files.
         let h_file = tempfile::Builder::new()
-            .prefix("sonde-")
+            .prefix("sonde")
+            .rand_bytes(0)
             .suffix(".h")
             .tempfile_in(&out_dir)
             .unwrap();
@@ -106,7 +117,7 @@ impl Builder {
 
         // Generate the FFI `.c` file.
         let mut ffi_file = tempfile::Builder::new()
-            .prefix("sonde-ffi-")
+            .prefix("sonde-ffi")
             .suffix(".c")
             .tempfile_in(&out_dir)
             .unwrap();
@@ -149,23 +160,14 @@ impl Builder {
 
         // Let's compile the FFI `.c` file to a `.a` file.
         {
-            cc::Build::new().file(&ffi_file).compile(
-                ffi_file
-                    .path()
-                    .with_extension("")
-                    .file_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap(),
-            );
+            cc::Build::new().file(&ffi_file).compile("sonde-ffi");
         }
 
         // Finally, let's generate the nice API for Rust.
-        let mut rs_file = tempfile::Builder::new()
-            .prefix("sonde-")
-            .suffix(".rs")
-            .tempfile_in(&out_dir)
-            .unwrap();
+        let mut rs_path = PathBuf::new();
+        rs_path.push(&out_dir);
+        rs_path.push("sonde.rs");
+        let mut rs_file = File::create(&rs_path).unwrap();
 
         {
             let rs = format!(
@@ -226,7 +228,7 @@ impl Builder {
             println!(
                 "cargo:rustc-env={name}={value}",
                 name = SONDE_RUST_API_FILE_ENV_NAME,
-                value = rs_file.path().display(),
+                value = rs_path.as_path().display(),
             );
 
             rs_file.write_all(rs.as_bytes()).unwrap();
@@ -239,7 +241,5 @@ impl Builder {
         if self.keep_c_file {
             ffi_file.keep().unwrap();
         }
-
-        rs_file.keep().unwrap();
     }
 }

@@ -1,6 +1,6 @@
 fn main() {
     sonde::Builder::new()
-        .d_file("./providerA.d")
-        .d_file("./providerB.d")
+        .file("./providerA.d")
+        .file("./providerB.d")
         .compile();
 }
