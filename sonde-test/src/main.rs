@@ -1,7 +1,10 @@
 mod tracing;
+use std::ffi::CString;
 
 fn main() {
-    tracing::hello::world(42, ::std::ptr::null_mut());
+    let who = CString::new("Gordon").unwrap();
+
+    tracing::hello::you(who.as_ptr() as *mut _, who.as_bytes().len() as _);
 
     println!("Hello, World!");
 }

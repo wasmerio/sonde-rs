@@ -1,6 +1,6 @@
 provider Hello {
-    probe world(int, char*); 
-    probe you();
+    probe world(); 
+    probe you(char*, int);
     probe me();
     probe you__me();
 };
