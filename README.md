@@ -9,10 +9,10 @@
 `sonde` is a library to compile USDT probes into a Rust library, and
 to generate a friendly Rust idiomatic API around it.
 
-[Userland Statically Defined Tracing][usdt] (USDT for short) probes is
+[Userland Statically Defined Tracing][usdt] probes (USDT for short) is
 a technique inherited from [DTrace] (see [OpenDtrace] to learn
-more). It allows user to defined statically tracing probes in their
-own application; while they are traditionally declared in the kernel.
+more). It allows user to define statically tracing probes in their own
+application; while they are traditionally declared in the kernel.
 
 USDT probes can be naturally consumed with DTrace, but also with
 [eBPF] (`bcc`, `bpftrace`…).
@@ -25,7 +25,7 @@ into a `nop` instruction, and its metadata are stored in the ELF's
 `.note.stapstd` section. When registering a probe, USDT tool (like
 `dtrace`, `bcc`, `bpftrace` etc.) will read the ELF section, and
 instrument the instruction from `nop` to `breakpoint`, and after that,
-the attached tracing event is run. After deregistering the probe, USDB
+the attached tracing event is run. After deregistering the probe, USDT
 will restore the `nop` instruction from `breakpoint`.
 
 The overhead of using USDT probes is almost zero when no tool is
@@ -34,9 +34,8 @@ listening the probes, otherwise a tiny overhead can be noticed.
 ## The workflow
 
 Everything is automated. `dtrace` must be present on the system at
-compile-time though.
-
-Let's imagine the following `sonde-test` fictitious project:
+compile-time though. Let's imagine the following `sonde-test`
+fictitious project:
 
 ```
 /sonde-test
@@ -47,15 +46,17 @@ Let's imagine the following `sonde-test` fictitious project:
 ├── provider.d
 ```
 
-First, add the following lines to the `Cargo.toml` file:
+Start with the obvious thing: let's add the following lines to the
+`Cargo.toml` file:
 
 ```toml
 [build-dependencies]
 sonde = "0.1"
 ```
 
-Now, let's see what is in the `provider.d` file. It's the canonical
-way to declare USDT probes:
+Now, let's see what is in the `provider.d` file. It's _not_ a `sonde`
+specific vendor format, it's the canonical way to declare USDT probes
+(see [Scripting][scripting])!
 
 ```d
 provider hello {
@@ -85,7 +86,7 @@ fn main() {
 ```
 
 That's all. That's the minimum one needs to write to make it
-work. Notice that `sonde` is only a build dependencies.
+work.
 
 Ultimately, we want to fire this probe from our code. Let's see what's
 inside `src/main.rs` then:
@@ -107,6 +108,41 @@ fn main() {
 What can we see here? The `tracing` module contains a `hello` module,
 corresponding to the `hello` provider. And this module contains a
 `world` function, corresponding to the `world` probe. Nice!
+
+<details>
+<summary>See what's contained by the file pointed by <code>SONDE_RUST_API_FILE</code>:</summary>
+
+```rust
+/// Bindings from Rust to the C FFI small library that calls the
+/// probes.
+
+use std::os::raw::*;
+
+extern "C" {
+    #[doc(hidden)]
+    fn hello_probe_world();
+
+    #[doc(hidden)]
+    fn hello_probe_you(arg0: *mut c_char, arg1: c_int);
+}
+
+/// Probes for the `hello` provider.
+pub mod r#hello {
+    use std::os::raw::*;
+
+    /// Call the `world` probe of the `hello` provider.
+    pub fn r#world() {
+        unsafe { super::hello_probe_world() };
+    }
+
+    /// Call the `you` probe of the `hello` provider.
+    pub fn r#you(arg0: *mut c_char, arg1: c_int) {
+        unsafe { super::hello_probe_you(arg0, arg1) };
+    }
+}
+```
+
+</details>
 
 Let's see it in action:
 
@@ -170,7 +206,7 @@ Sizes][data-types]). `sonde` tries to map it to the Rust system as
 much as possible, but it's possible that some types could not
 match. The following types are supported:
 
-| Type Name in D | Type name Rust |
+| Type Name in D | Type Name in Rust |
 |-|-|
 | `char` | `std::os::raw::c_char` |
 | `short` | `std::os::raw::c_short` |
@@ -209,3 +245,4 @@ pragma (`#pragma`) directives are ignored for the moment.
 [eBPF]: http://www.brendangregg.com/blog/2019-01-01/learn-ebpf-tracing.html
 [data-types]: https://illumos.org/books/dtrace/chp-typeopexpr.html#chp-typeopexpr-2
 [`std::os::raw`]: https://doc.rust-lang.org/std/os/raw/index.html
+[scripting]: https://illumos.org/books/dtrace/chp-script.html#chp-script
