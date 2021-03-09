@@ -161,9 +161,9 @@ binary as you need by simply editing your canonical `.d` file.
 Bonus: `sonde` generates documentation for your probes
 automatically. Run `cargo doc --open` to check.
 
-# Possible limitations
+## Possible limitations
 
-## Types
+### Types
 
 DTrace has its own type system (close to C) (see [Data Types and
 Sizes][data-types]). `sonde` tries to map it to the Rust system as
@@ -192,7 +192,7 @@ match. The following types are supported:
 | `T*` | `*mut T` |
 | `T**` | `*mut *mut T` (and so on) |
 
-## Parser
+### Parser
 
 The `.d` files are parsed by `sonde`. For the moment, only the
 `provider` blocks are parsed, which declare the `probe`s. All the
