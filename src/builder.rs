@@ -90,7 +90,6 @@ impl Builder {
         // Let's get a unique `.h` file from the `.d` files.
         let h_file = tempfile::Builder::new()
             .prefix("sonde")
-            .rand_bytes(0)
             .suffix(".h")
             .tempfile_in(&out_dir)
             .unwrap();
@@ -115,7 +114,9 @@ impl Builder {
                 .unwrap();
         }
 
-        // Generate the FFI `.c` file.
+        // Generate the FFI `.c` file. The probes are defined behind C
+        // macros; they can't be call from Rust, so we need to wrap
+        // them inside C functions.
         let mut ffi_file = tempfile::Builder::new()
             .prefix("sonde-ffi")
             .suffix(".c")
@@ -139,9 +140,11 @@ impl Builder {
                                 let probe_name = probe.name.replace("__", "_");
 
                                 format!(
-                                    "void {prefix}_probe_{suffix}() {{ \
-                                        {macro_prefix}_{macro_suffix}(); \
-                                    }}",
+                                    r#"
+void {prefix}_probe_{suffix}() {{
+    {macro_prefix}_{macro_suffix}();
+}}
+"#,
                                     prefix = provider_name.to_lowercase(),
                                     suffix = probe_name.to_lowercase(),
                                     macro_prefix = provider_name.to_uppercase(),
@@ -149,7 +152,7 @@ impl Builder {
                                 )
                             })
                             .collect::<Vec<String>>()
-                            .join("\n\n")
+                            .join("")
                     })
                     .collect::<Vec<String>>()
                     .join("\n\n")
@@ -171,11 +174,15 @@ impl Builder {
 
         {
             let rs = format!(
-                "extern \"C\" {{ \
-                    {externs} \
-                }} \
-                \n \
-                {wrappers}",
+                r#"/// Bindings from Rust to the C FFI small library that calls the
+/// probes.
+
+extern "C" {{
+{externs}
+}}
+
+{wrappers}
+"#,
                 externs = providers
                     .iter()
                     .map(|provider| {
@@ -188,7 +195,8 @@ impl Builder {
                                 let probe_name = probe.name.replace("__", "_");
 
                                 format!(
-                                    "fn {prefix}_probe_{suffix}();",
+                                    r#"    #[doc(hidden)]
+    fn {prefix}_probe_{suffix}();"#,
                                     prefix = provider_name.to_lowercase(),
                                     suffix = probe_name.to_lowercase(),
                                 )
@@ -203,23 +211,32 @@ impl Builder {
                     .map(|provider| {
                         let provider_name = &provider.name;
 
-                        provider
-                            .probes
-                            .iter()
-                            .map(|probe| {
-                                let probe_name = probe.name.replace("__", "_");
+                        format!(
+                            r#"/// Probes for the `{provider_name}` provider.
+pub mod {provider_name} {{
+{probes}
+}}"#,
+                            provider_name = provider_name.to_lowercase(),
+                            probes = provider
+                                .probes
+                                .iter()
+                                .map(|probe| {
+                                    let probe_name = probe.name.replace("__", "_");
 
-                                format!(
-                                    "pub fn {probe_name}() {{ \
-                                        unsafe {{ {ffi_prefix}_probe_{ffi_suffix}() }}; \
-                                    }}",
-                                    probe_name = probe_name,
-                                    ffi_prefix = provider_name.to_lowercase(),
-                                    ffi_suffix = probe_name.to_lowercase(),
-                                )
-                            })
-                            .collect::<Vec<String>>()
-                            .join("\n\n")
+                                    format!(
+                                        r#"    /// Call the `{probe_name}` probe of the `{provider_name}` provider.
+    pub fn {probe_name}() {{
+        unsafe {{ super::{ffi_prefix}_probe_{ffi_suffix}() }};
+    }}"#,
+                                        provider_name = provider_name,
+                                        probe_name = probe_name,
+                                        ffi_prefix = provider_name.to_lowercase(),
+                                        ffi_suffix = probe_name.to_lowercase(),
+                                    )
+                                })
+                                .collect::<Vec<String>>()
+                                .join("\n\n")
+                        )
                     })
                     .collect::<Vec<String>>()
                     .join("\n\n")

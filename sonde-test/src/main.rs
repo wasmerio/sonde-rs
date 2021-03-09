@@ -1,7 +1,7 @@
 mod tracing;
 
 fn main() {
-    tracing::world();
+    tracing::hello::world();
 
     println!("Hello, World!");
 }
