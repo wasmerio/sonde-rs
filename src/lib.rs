@@ -1,4 +1,4 @@
 mod builder;
-mod dparser;
+mod d;
 
 pub use builder::Builder;

@@ -1,6 +1,7 @@
 //! Documentation for the `.d` format,
 //! https://illumos.org/books/dtrace/chp-usdt.html#chp-usdt-2.
 
+use super::ast::*;
 use nom::{
     bytes::complete::{tag, take_until, take_while},
     character::{complete::char, is_alphanumeric},
@@ -10,33 +11,6 @@ use nom::{
     sequence::{delimited, preceded, terminated, tuple},
     IResult,
 };
-use std::fmt::Debug;
-
-/// Contains `provider` blocks from a `.d` file.
-#[derive(Debug, PartialEq)]
-pub struct Script {
-    pub providers: Vec<Provider>,
-}
-
-/// Describes a `provider` block.
-#[derive(Debug, PartialEq)]
-pub struct Provider {
-    /// The provider's name.
-    pub name: String,
-
-    /// The probes defined inside the the block.
-    pub probes: Vec<Probe>,
-}
-
-/// Describes a `probe`.
-#[derive(Debug, PartialEq)]
-pub struct Probe {
-    /// THe probe's name.
-    pub name: String,
-
-    /// The probe's arguments.
-    pub arguments: Vec<String>,
-}
 
 // Canonicalization of a `$parser`, i.e. remove the whitespace before it.
 macro_rules! canon {

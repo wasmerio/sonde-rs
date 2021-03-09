@@ -1,4 +1,4 @@
-use crate::dparser;
+use crate::d::{self, ast::Names};
 use std::{
     env,
     fs::{read_to_string, File},
@@ -79,7 +79,7 @@ impl Builder {
                 let content = read_to_string(d_file).unwrap();
                 contents.push_str(&content);
 
-                let script = dparser::parse(&content).unwrap();
+                let script = d::parser::parse(&content).unwrap();
 
                 for provider in script.providers {
                     providers.push(provider);
@@ -131,24 +131,20 @@ impl Builder {
                 wrappers = providers
                     .iter()
                     .map(|provider| {
-                        let provider_name = &provider.name;
-
                         provider
                             .probes
                             .iter()
                             .map(|probe| {
-                                let probe_name = probe.name.replace("__", "_");
-
                                 format!(
                                     r#"
 void {prefix}_probe_{suffix}() {{
     {macro_prefix}_{macro_suffix}();
 }}
 "#,
-                                    prefix = provider_name.to_lowercase(),
-                                    suffix = probe_name.to_lowercase(),
-                                    macro_prefix = provider_name.to_uppercase(),
-                                    macro_suffix = probe_name.to_uppercase(),
+                                    prefix = provider.name_for_c(),
+                                    suffix = probe.name_for_c(),
+                                    macro_prefix = provider.name_for_c_macro(),
+                                    macro_suffix = probe.name_for_c_macro(),
                                 )
                             })
                             .collect::<Vec<String>>()
@@ -186,19 +182,15 @@ extern "C" {{
                 externs = providers
                     .iter()
                     .map(|provider| {
-                        let provider_name = &provider.name;
-
                         provider
                             .probes
                             .iter()
                             .map(|probe| {
-                                let probe_name = probe.name.replace("__", "_");
-
                                 format!(
                                     r#"    #[doc(hidden)]
-    fn {prefix}_probe_{suffix}();"#,
-                                    prefix = provider_name.to_lowercase(),
-                                    suffix = probe_name.to_lowercase(),
+    fn {ffi_prefix}_probe_{ffi_suffix}();"#,
+                                    ffi_prefix = provider.name_for_c(),
+                                    ffi_suffix = probe.name_for_c(),
                                 )
                             })
                             .collect::<Vec<String>>()
@@ -209,29 +201,25 @@ extern "C" {{
                 wrappers = providers
                     .iter()
                     .map(|provider| {
-                        let provider_name = &provider.name;
-
                         format!(
                             r#"/// Probes for the `{provider_name}` provider.
 pub mod {provider_name} {{
 {probes}
 }}"#,
-                            provider_name = provider_name.to_lowercase(),
+                            provider_name = provider.name_for_rust(),
                             probes = provider
                                 .probes
                                 .iter()
                                 .map(|probe| {
-                                    let probe_name = probe.name.replace("__", "_");
-
                                     format!(
                                         r#"    /// Call the `{probe_name}` probe of the `{provider_name}` provider.
     pub fn {probe_name}() {{
         unsafe {{ super::{ffi_prefix}_probe_{ffi_suffix}() }};
     }}"#,
-                                        provider_name = provider_name,
-                                        probe_name = probe_name,
-                                        ffi_prefix = provider_name.to_lowercase(),
-                                        ffi_suffix = probe_name.to_lowercase(),
+                                        provider_name = provider.name_for_rust(),
+                                        probe_name = probe.name_for_rust(),
+                                        ffi_prefix = provider.name_for_c(),
+                                        ffi_suffix = probe.name_for_c(),
                                     )
                                 })
                                 .collect::<Vec<String>>()
