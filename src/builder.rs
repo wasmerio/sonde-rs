@@ -125,8 +125,9 @@ impl Builder {
 
         {
             let ffi = format!(
-                "#include {header_file:?}\n\n\
-                {wrappers}",
+                r#"#include {header_file:?}
+
+{wrappers}"#,
                 header_file = h_file_name,
                 wrappers = providers
                     .iter()
@@ -137,21 +138,29 @@ impl Builder {
                             .map(|probe| {
                                 format!(
                                     r#"
-void {prefix}_probe_{suffix}() {{
-    {macro_prefix}_{macro_suffix}();
+void {prefix}_probe_{suffix}({arguments}) {{
+    {macro_prefix}_{macro_suffix}({argument_names});
 }}
 "#,
                                     prefix = provider.name_for_c(),
                                     suffix = probe.name_for_c(),
                                     macro_prefix = provider.name_for_c_macro(),
                                     macro_suffix = probe.name_for_c_macro(),
+                                    arguments = probe.arguments_for_c(),
+                                    argument_names = probe
+                                        .arguments
+                                        .iter()
+                                        .enumerate()
+                                        .map(|(nth, _)| { format!("arg{nth}", nth = nth) })
+                                        .collect::<Vec<String>>()
+                                        .join(", ")
                                 )
                             })
                             .collect::<Vec<String>>()
                             .join("")
                     })
                     .collect::<Vec<String>>()
-                    .join("\n\n")
+                    .join("\n")
             );
 
             ffi_file.write_all(ffi.as_bytes()).unwrap();
@@ -173,6 +182,8 @@ void {prefix}_probe_{suffix}() {{
                 r#"/// Bindings from Rust to the C FFI small library that calls the
 /// probes.
 
+use std::os::raw::*;
+
 extern "C" {{
 {externs}
 }}
@@ -188,9 +199,10 @@ extern "C" {{
                             .map(|probe| {
                                 format!(
                                     r#"    #[doc(hidden)]
-    fn {ffi_prefix}_probe_{ffi_suffix}();"#,
+    fn {ffi_prefix}_probe_{ffi_suffix}({arguments});"#,
                                     ffi_prefix = provider.name_for_c(),
                                     ffi_suffix = probe.name_for_c(),
+                                    arguments = probe.arguments_for_c_from_rust(),
                                 )
                             })
                             .collect::<Vec<String>>()
@@ -204,6 +216,8 @@ extern "C" {{
                         format!(
                             r#"/// Probes for the `{provider_name}` provider.
 pub mod r#{provider_name} {{
+    use std::os::raw::*;
+
 {probes}
 }}"#,
                             provider_name = provider.name_for_rust(),
@@ -213,13 +227,21 @@ pub mod r#{provider_name} {{
                                 .map(|probe| {
                                     format!(
                                         r#"    /// Call the `{probe_name}` probe of the `{provider_name}` provider.
-    pub fn r#{probe_name}() {{
-        unsafe {{ super::{ffi_prefix}_probe_{ffi_suffix}() }};
+    pub fn r#{probe_name}({arguments}) {{
+        unsafe {{ super::{ffi_prefix}_probe_{ffi_suffix}({argument_names}) }};
     }}"#,
                                         provider_name = provider.name_for_rust(),
                                         probe_name = probe.name_for_rust(),
                                         ffi_prefix = provider.name_for_c(),
                                         ffi_suffix = probe.name_for_c(),
+                                        arguments = probe.arguments_for_c_from_rust(),
+                                        argument_names = probe
+                                            .arguments
+                                            .iter()
+                                            .enumerate()
+                                            .map(|(nth, _)| { format!("arg{nth}", nth = nth) })
+                                            .collect::<Vec<String>>()
+                                            .join(", ")
                                     )
                                 })
                                 .collect::<Vec<String>>()
