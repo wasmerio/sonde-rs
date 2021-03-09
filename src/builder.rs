@@ -203,7 +203,7 @@ extern "C" {{
                     .map(|provider| {
                         format!(
                             r#"/// Probes for the `{provider_name}` provider.
-pub mod {provider_name} {{
+pub mod r#{provider_name} {{
 {probes}
 }}"#,
                             provider_name = provider.name_for_rust(),
@@ -213,7 +213,7 @@ pub mod {provider_name} {{
                                 .map(|probe| {
                                     format!(
                                         r#"    /// Call the `{probe_name}` probe of the `{provider_name}` provider.
-    pub fn {probe_name}() {{
+    pub fn r#{probe_name}() {{
         unsafe {{ super::{ffi_prefix}_probe_{ffi_suffix}() }};
     }}"#,
                                         provider_name = provider.name_for_rust(),
