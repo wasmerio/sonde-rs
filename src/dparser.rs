@@ -12,45 +12,59 @@ use nom::{
 };
 use std::fmt::Debug;
 
+/// Contains `provider` blocks from a `.d` file.
 #[derive(Debug, PartialEq)]
 pub struct Script {
     pub providers: Vec<Provider>,
 }
 
+/// Describes a `provider` block.
 #[derive(Debug, PartialEq)]
 pub struct Provider {
+    /// The provider's name.
     pub name: String,
+
+    /// The probes defined inside the the block.
     pub probes: Vec<Probe>,
 }
 
+/// Describes a `probe`.
 #[derive(Debug, PartialEq)]
 pub struct Probe {
+    /// THe probe's name.
     pub name: String,
+
+    /// The probe's arguments.
     pub arguments: Vec<String>,
 }
 
+// Canonicalization of a `$parser`, i.e. remove the whitespace before it.
 macro_rules! canon {
     ($parser:expr) => {
         preceded(ws, $parser)
     };
 }
 
+/// Parse whitespaces.
 fn ws<'i, E: ParseError<&'i str>>(input: &'i str) -> IResult<&'i str, &'i str, E> {
     let chars = "\t\r\n ";
 
     take_while(move |c| chars.contains(c))(input)
 }
 
+/// Parse a name.
 fn name<'i, E: ParseError<&'i str>>(input: &'i str) -> IResult<&'i str, &'i str, E> {
     take_while(|c| is_alphanumeric(c as u8) || c == '-' || c == '_')(input)
 }
 
+/// Parse a type. That's super generic. It doesn't validate anything specifically.
 fn ty<'i, E: ParseError<&'i str>>(input: &'i str) -> IResult<&'i str, &'i str, E> {
     let chars = ",)";
 
     take_while(move |c| !chars.contains(c))(input)
 }
 
+/// Parse a `probe`.
 fn probe<'i, E: ParseError<&'i str>>(input: &'i str) -> IResult<&'i str, Probe, E> {
     map(
         tuple((
@@ -79,6 +93,7 @@ fn probe<'i, E: ParseError<&'i str>>(input: &'i str) -> IResult<&'i str, Probe, 
     )(input)
 }
 
+/// Parse a `provider`.
 fn provider<'i, E: ParseError<&'i str>>(input: &'i str) -> IResult<&'i str, Provider, E> {
     map(
         tuple((
@@ -96,9 +111,8 @@ fn provider<'i, E: ParseError<&'i str>>(input: &'i str) -> IResult<&'i str, Prov
     )(input)
 }
 
+/// Parse a script. It collects only the `provider` blocks, nothing else.
 fn script<'i, E: ParseError<&'i str>>(mut input: &'i str) -> IResult<&'i str, Script, E> {
-    // Only parse the `provider {}` blocks.
-
     let mut script = Script { providers: vec![] };
 
     loop {
@@ -116,6 +130,7 @@ fn script<'i, E: ParseError<&'i str>>(mut input: &'i str) -> IResult<&'i str, Sc
     }
 }
 
+/// Parse a `.d` file and return a [`Script`] value.
 pub fn parse<'i>(input: &'i str) -> Result<Script, String> {
     match script::<VerboseError<&'i str>>(input) {
         Ok((_, output)) => Ok(output),

@@ -6,4 +6,4 @@ edition = "2018"
 publish = false
 
 [build-dependencies]
-sonde = { path = "../lib/sonde" }
+sonde = { path = "../" }

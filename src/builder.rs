@@ -12,6 +12,8 @@ const SONDE_RUST_API_FILE_ENV_NAME: &str = "SONDE_RUST_API_FILE";
 #[derive(Default)]
 pub struct Builder {
     d_files: Vec<PathBuf>,
+    keep_h_file: bool,
+    keep_c_file: bool,
 }
 
 impl Builder {
@@ -21,7 +23,7 @@ impl Builder {
         }
     }
 
-    pub fn d_file<P>(&mut self, path: P) -> &mut Self
+    pub fn file<P>(&mut self, path: P) -> &mut Self
     where
         P: AsRef<Path>,
     {
@@ -30,14 +32,26 @@ impl Builder {
         self
     }
 
-    pub fn d_files<P>(&mut self, paths: P) -> &mut Self
+    pub fn files<P>(&mut self, paths: P) -> &mut Self
     where
         P: IntoIterator,
         P::Item: AsRef<Path>,
     {
         for path in paths.into_iter() {
-            self.d_file(path);
+            self.file(path);
         }
+
+        self
+    }
+
+    pub fn keep_h_file(&mut self, keep: bool) -> &mut Self {
+        self.keep_h_file = keep;
+
+        self
+    }
+
+    pub fn keep_c_file(&mut self, keep: bool) -> &mut Self {
+        self.keep_c_file = keep;
 
         self
     }
@@ -69,6 +83,7 @@ impl Builder {
             .suffix(".h")
             .tempfile_in(&out_dir)
             .unwrap();
+
         let h_file_name = h_file.path();
 
         {
@@ -215,6 +230,14 @@ impl Builder {
             );
 
             rs_file.write_all(rs.as_bytes()).unwrap();
+        }
+
+        if self.keep_h_file {
+            h_file.keep().unwrap();
+        }
+
+        if self.keep_c_file {
+            ffi_file.keep().unwrap();
         }
 
         rs_file.keep().unwrap();
