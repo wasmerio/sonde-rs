@@ -187,6 +187,7 @@ void {prefix}_probe_{suffix}({arguments}) {{
                 r#"/// Bindings from Rust to the C FFI small library that calls the
 /// probes.
 
+#[allow(unused)]
 use std::os::raw::*;
 
 extern "C" {{
@@ -221,6 +222,7 @@ extern "C" {{
                         format!(
                             r#"/// Probes for the `{provider_name}` provider.
 pub mod r#{provider_name} {{
+    #[allow(unused)]
     use std::os::raw::*;
 
 {probes}
