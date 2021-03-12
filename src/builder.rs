@@ -89,7 +89,7 @@ impl Builder {
 
         // Let's get a unique `.h` file from the `.d` files.
         let h_file = tempfile::Builder::new()
-            .prefix("sonde")
+            .prefix("sonde-")
             .suffix(".h")
             .tempfile_in(&out_dir)
             .unwrap();
