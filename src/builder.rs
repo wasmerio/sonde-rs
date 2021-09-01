@@ -105,11 +105,11 @@ impl Builder {
             d_file.write_all(contents.as_bytes()).unwrap();
 
             Command::new("dtrace")
-                .arg("-arch")
+                /*.arg("-arch")
                 .arg(match env::var("CARGO_CFG_TARGET_ARCH").unwrap().as_str() {
                     "aarch64" => "arm64",
                     arch => arch,
-                })
+                })*/
                 .arg("-o")
                 .arg(h_file_name.as_os_str())
                 .arg("-h")
@@ -130,7 +130,8 @@ impl Builder {
 
         {
             let ffi = format!(
-                r#"#include {header_file:?}
+                r#"#include <sys/sdt.h>
+#include {header_file:?}
 
 {wrappers}"#,
                 header_file = h_file_name,
