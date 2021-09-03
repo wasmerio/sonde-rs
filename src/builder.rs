@@ -107,6 +107,14 @@ impl Builder {
             .unwrap();
     }
 
+    fn temporary_file(&self, out_dir: &str, extension: &str) -> tempfile::NamedTempFile {
+        tempfile::Builder::new()
+            .prefix("sonde-")
+            .suffix(extension)
+            .tempfile_in(out_dir)
+            .unwrap()
+    }
+
     pub fn compile(&self) {
         let out_dir = env::var("OUT_DIR")
             .map_err(|_| "The Cargo `OUT_DIR` variable is missing")
@@ -139,28 +147,14 @@ impl Builder {
         }
 
         // Let's get a unique `.h` file from the `.d` files.
-        let h_file = tempfile::Builder::new()
-            .prefix("sonde-")
-            .suffix(".h")
-            .tempfile_in(&out_dir)
-            .unwrap();
-
+        let h_file = self.temporary_file(&out_dir, ".h");
         let h_file_name = h_file.path();
 
-        let o_file = tempfile::Builder::new()
-            .prefix("sonde-")
-            .suffix(".o")
-            .tempfile_in(&out_dir)
-            .unwrap();
-
+        let o_file = self.temporary_file(&out_dir, ".o");
         let o_file_name = o_file.path();
 
         {
-            let mut d_file = tempfile::Builder::new()
-                .prefix("sonde-")
-                .suffix(".d")
-                .tempfile_in(&out_dir)
-                .unwrap();
+            let mut d_file = self.temporary_file(&out_dir, ".d");
             d_file.write_all(contents.as_bytes()).unwrap();
 
             self.generate_header(&d_file.path().as_os_str(), &h_file_name.as_os_str());
@@ -173,11 +167,7 @@ impl Builder {
         // Generate the FFI `.c` file. The probes are defined behind C
         // macros; they can't be call from Rust, so we need to wrap
         // them inside C functions.
-        let mut ffi_file = tempfile::Builder::new()
-            .prefix("sonde-ffi")
-            .suffix(".c")
-            .tempfile_in(&out_dir)
-            .unwrap();
+        let mut ffi_file = self.temporary_file(&out_dir, ".c");
 
         {
             let ffi = format!(
