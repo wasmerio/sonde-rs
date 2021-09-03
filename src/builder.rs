@@ -5,6 +5,7 @@ use std::{
     io::prelude::*,
     path::{Path, PathBuf},
     process::Command,
+    ffi::OsStr,
 };
 
 const SONDE_RUST_API_FILE_ENV_NAME: &str = "SONDE_RUST_API_FILE";
@@ -14,6 +15,8 @@ pub struct Builder {
     d_files: Vec<PathBuf>,
     keep_h_file: bool,
     keep_c_file: bool,
+    use_semaphore: bool,
+    use_arch: bool,
 }
 
 impl Builder {
@@ -56,6 +59,54 @@ impl Builder {
         self
     }
 
+    pub fn use_semaphore_object(&mut self, use_semaphore: bool) -> &mut Self {
+        self.use_semaphore = use_semaphore;
+        self
+    }
+
+    pub fn use_arch(&mut self, use_arch: bool) -> &mut Self {
+        self.use_arch = use_arch;
+        self
+    }
+
+    fn generate_header(&self, d_path: &OsStr, h_path: &OsStr) {
+        let mut cmd = Command::new("dtrace");
+        cmd.arg("-o")
+            .arg(h_path)
+            .arg("-h")
+            .arg("-s")
+            .arg(d_path);
+
+        if self.use_arch {
+            cmd.arg("-arch")
+                .arg(match env::var("CARGO_CFG_TARGET_ARCH").unwrap().as_str() {
+                    "aarch64" => "arm64",
+                    arch => arch,
+                });
+        }
+        cmd.status()
+            .unwrap();
+    }
+
+    fn generate_semaphore_object(&self, d_path: &OsStr, o_path: &OsStr) {
+        let mut cmd = Command::new("dtrace");
+        cmd.arg("-o")
+            .arg(o_path)
+            .arg("-G")
+            .arg("-s")
+            .arg(d_path);
+
+        if self.use_arch {
+            cmd.arg("-arch")
+                .arg(match env::var("CARGO_CFG_TARGET_ARCH").unwrap().as_str() {
+                    "aarch64" => "arm64",
+                    arch => arch,
+                });
+        }
+        cmd.status()
+            .unwrap();
+    }
+
     pub fn compile(&self) {
         let out_dir = env::var("OUT_DIR")
             .map_err(|_| "The Cargo `OUT_DIR` variable is missing")
@@ -96,6 +147,14 @@ impl Builder {
 
         let h_file_name = h_file.path();
 
+        let o_file = tempfile::Builder::new()
+            .prefix("sonde-")
+            .suffix(".o")
+            .tempfile_in(&out_dir)
+            .unwrap();
+
+        let o_file_name = o_file.path();
+
         {
             let mut d_file = tempfile::Builder::new()
                 .prefix("sonde-")
@@ -104,19 +163,11 @@ impl Builder {
                 .unwrap();
             d_file.write_all(contents.as_bytes()).unwrap();
 
-            Command::new("dtrace")
-                /*.arg("-arch")
-                .arg(match env::var("CARGO_CFG_TARGET_ARCH").unwrap().as_str() {
-                    "aarch64" => "arm64",
-                    arch => arch,
-                })*/
-                .arg("-o")
-                .arg(h_file_name.as_os_str())
-                .arg("-h")
-                .arg("-s")
-                .arg(&d_file.path().as_os_str())
-                .status()
-                .unwrap();
+            self.generate_header(&d_file.path().as_os_str(), &h_file_name.as_os_str());
+
+            if self.use_semaphore {
+                self.generate_semaphore_object(&d_file.path().as_os_str(), &o_file_name.as_os_str());
+            }
         }
 
         // Generate the FFI `.c` file. The probes are defined behind C
@@ -130,10 +181,11 @@ impl Builder {
 
         {
             let ffi = format!(
-                r#"#include <sys/sdt.h>
+                r#"{semaphore_disable}
 #include {header_file:?}
 
 {wrappers}"#,
+                semaphore_disable = (if self.use_semaphore { "" } else { "#include <sys/sdt.h>" }),
                 header_file = h_file_name,
                 wrappers = providers
                     .iter()
@@ -174,7 +226,11 @@ void {prefix}_probe_{suffix}({arguments}) {{
 
         // Let's compile the FFI `.c` file to a `.a` file.
         {
-            cc::Build::new().file(&ffi_file).compile("sonde-ffi");
+            let mut build_cmd = cc::Build::new();
+            if self.use_semaphore {
+                build_cmd.object(&o_file);
+            }
+            build_cmd.file(&ffi_file).compile("sonde-ffi");
         }
 
         // Finally, let's generate the nice API for Rust.
